@@ -1,9 +1,9 @@
 import streamlit as st
-import openai
 import plotly.graph_objects as go
+from openai import OpenAI
 
-# 🔐 OpenAI sleutel ophalen uit secrets
-openai.api_key = st.secrets["openai"]["api_key"]
+# 🔐 Maak een OpenAI-client aan met jouw API-key
+client = OpenAI(api_key=st.secrets["openai"]["api_key"])
 
 # 📊 Functie: Toon sentimentmeter
 def toon_sentiment_meter(score):
@@ -24,13 +24,12 @@ def toon_sentiment_meter(score):
         domain={'x': [0, 1], 'y': [0, 1]},
         title={'text': "📊 Gemiddeld sentiment"}
     ))
-
     st.plotly_chart(fig, use_container_width=True)
 
 # 🧠 Titel & uitleg
 st.title("📊 Sentiment Tracker")
 st.markdown("### 📈 Analyseer automatisch het sentiment van beursnieuws")
-st.write("Typ een tickersymbool zoals `AAPL`, `TSLA` of `ASML` om automatisch recente nieuwsberichten te laten analyseren door GPT.")
+st.write("Typ een tickersymbool zoals `AAPL`, `TSLA` of `ASML` om recente nieuwsberichten automatisch te laten analyseren door GPT.")
 
 # 🔍 Inputveld
 ticker = st.text_input("🔍 Ticker:", value="AAPL")
@@ -53,17 +52,25 @@ if ticker:
     for artikel in news:
         titel = artikel["title"]
 
-        # GPT-analyse
         try:
-            response = openai.ChatCompletion.create(
+            # GPT-analyse uitvoeren
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "Je bent een AI-beleggingsassistent. Analyseer het sentiment van dit nieuwsbericht in simpele taal (positief / negatief / neutraal) met korte uitleg. Geef ook een score tussen -1 (negatief) en 1 (positief) aan het einde, gescheiden door '||'."},
+                    {
+                        "role": "system",
+                        "content": (
+                            "Je bent een AI-beleggingsassistent. Analyseer het sentiment van dit nieuwsbericht in simpele taal "
+                            "(positief / negatief / neutraal) met een korte uitleg. Geef ook een sentiment-score tussen -1 (heel negatief) "
+                            "en 1 (heel positief) aan het einde, gescheiden met '||'."
+                        )
+                    },
                     {"role": "user", "content": f"Nieuwsbericht: {titel}"}
                 ]
             )
-            full_response = response["choices"][0]["message"]["content"]
-            # Splits GPT-output en score
+
+            full_response = response.choices[0].message.content
+
             if "||" in full_response:
                 uitleg, score_raw = full_response.split("||")
                 uitleg = uitleg.strip()
@@ -95,7 +102,6 @@ if ticker:
 # 📘 Footer
 st.markdown("---")
 st.caption("Gemaakt door Ewout • Powered by OpenAI, Plotly & Streamlit")
-
 
 
 
