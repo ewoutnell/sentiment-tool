@@ -2,7 +2,7 @@ import streamlit as st
 import yfinance as yf
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-st.title("📈 AI Sentiment Tool voor Beleggers")
+st.title("📈 Sentiment Tracker")
 st.write("Vul een tickersymbool in (zoals AAPL of ASML) om recent nieuws en sentiment te bekijken.")
 
 ticker = st.text_input("🔍 Ticker:")
@@ -11,7 +11,15 @@ if ticker:
     try:
         st.subheader(f"Nieuws en sentiment voor {ticker.upper()}")
         stock = yf.Ticker(ticker)
-        news = stock.news
+        news = # Tijdelijke dummy-nieuwsdata
+news = [
+    {"title": "Apple beats expectations with strong Q4 results"},
+    {"title": "iPhone sales slow down amid economic concerns"},
+    {"title": "Apple announces new innovation in MacBooks"},
+    {"title": "Tech stocks slide, Apple among biggest losers"},
+    {"title": "Investors optimistic about Apple’s future"}
+]
+
 
         if news:
             analyzer = SentimentIntensityAnalyzer()
