@@ -1,9 +1,10 @@
 import streamlit as st
+import requests
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import plotly.graph_objects as go
-from openai import OpenAI
 
-# 🔐 Maak een OpenAI-client aan met jouw API-key
-client = OpenAI(api_key=st.secrets["openai"]["api_key"])
+# 🔑 Jouw NewsAPI-key (eventueel verplaatsbaar naar secrets)
+NEWSAPI_KEY = "8273c9b9fc7a4e1e83802707067b776b"
 
 # 📊 Functie: Toon sentimentmeter
 def toon_sentiment_meter(score):
@@ -27,81 +28,60 @@ def toon_sentiment_meter(score):
     st.plotly_chart(fig, use_container_width=True)
 
 # 🧠 Titel & uitleg
-st.title("📊 Sentiment Tracker")
-st.markdown("### 📈 Analyseer automatisch het sentiment van beursnieuws")
-st.write("Typ een tickersymbool zoals `AAPL`, `TSLA` of `ASML` om recente nieuwsberichten automatisch te laten analyseren door GPT.")
+st.title("📊 Sentiment Tracker (Real-time & Gratis)")
+st.markdown("### 📈 Analyseer automatisch het sentiment van beursnieuws (zonder GPT)")
+st.write("Voer een ticker of bedrijfsnaam in zoals `Apple`, `Tesla` of `ASML`. We halen real-time nieuws op en analyseren het met VADER.")
 
 # 🔍 Inputveld
-ticker = st.text_input("🔍 Ticker:", value="AAPL")
+ticker = st.text_input("🔍 Zoekterm:", value="Apple")
 
 if ticker:
     st.markdown("---")
-    st.subheader(f"🔎 GPT-analyse voor nieuws over **{ticker.upper()}**")
+    st.subheader(f"📰 Nieuws & sentiment voor **{ticker.upper()}**")
 
-    # 📰 Dummy headlines
-    news = [
-        {"title": "Apple beats expectations with strong Q4 results"},
-        {"title": "iPhone sales slow down amid economic concerns"},
-        {"title": "Apple announces new innovation in MacBooks"},
-        {"title": "Tech stocks slide, Apple among biggest losers"},
-        {"title": "Investors optimistic about Apple’s future"}
-    ]
+    # 🔎 Haal nieuws op van NewsAPI
+    try:
+        url = f"https://newsapi.org/v2/everything?q={ticker}&sortBy=publishedAt&pageSize=5&apiKey={NEWSAPI_KEY}"
+        r = requests.get(url)
+        articles = r.json().get("articles", [])
+    except Exception as e:
+        st.error(f"Fout bij ophalen van nieuws: {e}")
+        articles = []
 
+    analyzer = SentimentIntensityAnalyzer()
     sentiments = []
 
-    for artikel in news:
-        titel = artikel["title"]
-
-        try:
-            # GPT-analyse uitvoeren
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "Je bent een AI-beleggingsassistent. Analyseer het sentiment van dit nieuwsbericht in simpele taal "
-                            "(positief / negatief / neutraal) met een korte uitleg. Geef ook een sentiment-score tussen -1 (heel negatief) "
-                            "en 1 (heel positief) aan het einde, gescheiden met '||'."
-                        )
-                    },
-                    {"role": "user", "content": f"Nieuwsbericht: {titel}"}
-                ]
-            )
-
-            full_response = response.choices[0].message.content
-
-            if "||" in full_response:
-                uitleg, score_raw = full_response.split("||")
-                uitleg = uitleg.strip()
-                score = float(score_raw.strip())
-            else:
-                uitleg = full_response
-                score = 0.0
-
-        except Exception as e:
-            uitleg = f"⚠️ GPT-analyse mislukt: {e}"
-            score = 0.0
-
+    for artikel in articles:
+        titel = artikel.get("title", "Geen titel")
+        url = artikel.get("url", "")
+        score = analyzer.polarity_scores(titel)["compound"]
         sentiments.append(score)
 
-        # 💬 Output per artikel
         with st.container():
             st.markdown("#### 📰 Nieuwsbericht")
-            st.write(f"*{titel}*")
+            st.write(f"[{titel}]({url})")
 
-            st.markdown("#### 🤖 GPT Analyse")
-            st.write(uitleg)
+            st.markdown("#### 💡 Sentimentanalyse (VADER)")
+            if score <= -0.6:
+                st.error(f"Negatief sentiment ({score:.2f})")
+            elif score <= -0.2:
+                st.warning(f"Licht negatief ({score:.2f})")
+            elif score < 0.2:
+                st.info(f"Neutraal ({score:.2f})")
+            elif score < 0.6:
+                st.success(f"Licht positief ({score:.2f})")
+            else:
+                st.success(f"Positief sentiment ({score:.2f})")
             st.markdown("---")
 
-    # 📉 Toon gemiddelde meter
+    # 📉 Toon gemiddelde
     if sentiments:
         gemiddeld = sum(sentiments) / len(sentiments)
         toon_sentiment_meter(gemiddeld)
 
 # 📘 Footer
 st.markdown("---")
-st.caption("Gemaakt door Ewout • Powered by OpenAI, Plotly & Streamlit")
+st.caption("Gemaakt door Ewout • Gratis sentimentanalyse met VADER & NewsAPI")
 
 
 
