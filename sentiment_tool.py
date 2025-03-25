@@ -2,46 +2,65 @@ import streamlit as st
 import requests
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import plotly.graph_objects as go
+import math
 
-# 🔑 Jouw NewsAPI-key (eventueel verplaatsbaar naar secrets)
+# 🔐 Haal API-key uit secrets
 NEWSAPI_KEY = st.secrets["newsapi"]["api_key"]
 
-# 📊 Functie: Toon sentimentmeter
-def toon_sentiment_meter(score):
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=score,
-        gauge={
-            'axis': {'range': [-1, 1]},
-            'bar': {'color': "black"},
-            'steps': [
-                {'range': [-1.0, -0.6], 'color': "#ff4b4b"},      # Negatief
-                {'range': [-0.6, -0.2], 'color': "#ffb347"},      # Licht negatief
-                {'range': [-0.2,  0.2], 'color': "#ffe66d"},      # Neutraal
-                {'range': [ 0.2,  0.6], 'color': "#a8e6cf"},      # Licht positief
-                {'range': [ 0.6,  1.0], 'color': "#5cd65c"},      # Positief
-            ],
-        },
-        domain={'x': [0, 1], 'y': [0, 1]},
-        title={'text': "📊 Gemiddeld sentiment"}
+# 🧭 Klokstijl sentimentmeter
+def toon_klokstijl_wijzer(score):
+    angle = (1 - score) * math.pi  # -1 = 180°, +1 = 0°
+    x = 0.5 + 0.4 * math.cos(angle)
+    y = 0.5 + 0.4 * math.sin(angle)
+
+    fig = go.Figure()
+
+    # Wijzer (wit)
+    fig.add_trace(go.Scatter(
+        x=[0.5, x],
+        y=[0.5, y],
+        mode="lines+markers",
+        line=dict(color="white", width=4),
+        marker=dict(size=10, color="white"),
+        showlegend=False
     ))
-    st.plotly_chart(fig, use_container_width=True)
+
+    # Stip (groen referentiepunt)
+    fig.add_trace(go.Scatter(
+        x=[0.5],
+        y=[0.9],
+        mode="markers",
+        marker=dict(size=10, color="green"),
+        showlegend=False
+    ))
+
+    # Stijl
+    fig.update_layout(
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False),
+        plot_bgcolor="black",
+        paper_bgcolor="black",
+        width=300,
+        height=300,
+        margin=dict(l=0, r=0, t=0, b=0)
+    )
+
+    st.plotly_chart(fig)
 
 # 🧠 Titel & uitleg
-st.title("📊 Sentiment Tracker (Real-time & Gratis)")
+st.title("📊 Sentiment Tracker (Realtime & Gratis)")
 st.markdown("### 📈 Analyseer automatisch het sentiment van beursnieuws (zonder GPT)")
-st.write("Voer een ticker of bedrijfsnaam in zoals `Apple`, `Tesla` of `ASML`. We halen real-time nieuws op en analyseren het met VADER.")
+st.write("Voer een bedrijf of ticker in zoals `Apple`, `Tesla` of `ASML`. Wij tonen real-time nieuws en analyseren het met VADER.")
 
-# 🔍 Inputveld
-ticker = st.text_input("🔍 Zoekterm:", value="Apple")
+# 🔍 Zoekveld
+zoekterm = st.text_input("🔍 Zoekterm:", value="Apple")
 
-if ticker:
+if zoekterm:
     st.markdown("---")
-    st.subheader(f"📰 Nieuws & sentiment voor **{ticker.upper()}**")
 
-    # 🔎 Haal nieuws op van NewsAPI
+    # 📡 Nieuws ophalen van NewsAPI
     try:
-        url = f"https://newsapi.org/v2/everything?q={ticker}&sortBy=publishedAt&pageSize=5&apiKey={NEWSAPI_KEY}"
+        url = f"https://newsapi.org/v2/everything?q={zoekterm}&sortBy=publishedAt&pageSize=5&apiKey={NEWSAPI_KEY}"
         r = requests.get(url)
         articles = r.json().get("articles", [])
     except Exception as e:
@@ -51,19 +70,34 @@ if ticker:
     analyzer = SentimentIntensityAnalyzer()
     sentiments = []
 
+    # 🔢 VADER-score per artikel
     for artikel in articles:
         titel = artikel.get("title", "Geen titel")
         url = artikel.get("url", "")
         score = analyzer.polarity_scores(titel)["compound"]
         sentiments.append(score)
 
+    # 📍 Sentimentmeter direct onder zoekveld
+    if sentiments:
+        gemiddeld = sum(sentiments) / len(sentiments)
+        st.subheader("🧭 Gemiddeld sentiment")
+        toon_klokstijl_wijzer(gemiddeld)
+
+    # 🔁 Artikelen en analyses tonen
+    st.subheader(f"📰 Nieuws & sentiment over **{zoekterm.upper()}**")
+
+    for i, artikel in enumerate(articles):
+        titel = artikel.get("title", "Geen titel")
+        url = artikel.get("url", "")
+        score = sentiments[i]
+
         with st.container():
             st.markdown("#### 📰 Nieuwsbericht")
             st.write(f"[{titel}]({url})")
 
-            st.markdown("#### 💡 Sentimentanalyse (VADER)")
+            st.markdown("#### 💡 VADER-analyse")
             if score <= -0.6:
-                st.error(f"Negatief sentiment ({score:.2f})")
+                st.error(f"Negatief ({score:.2f})")
             elif score <= -0.2:
                 st.warning(f"Licht negatief ({score:.2f})")
             elif score < 0.2:
@@ -71,17 +105,11 @@ if ticker:
             elif score < 0.6:
                 st.success(f"Licht positief ({score:.2f})")
             else:
-                st.success(f"Positief sentiment ({score:.2f})")
+                st.success(f"Positief ({score:.2f})")
             st.markdown("---")
-
-    # 📉 Toon gemiddelde
-    if sentiments:
-        gemiddeld = sum(sentiments) / len(sentiments)
-        toon_sentiment_meter(gemiddeld)
 
 # 📘 Footer
 st.markdown("---")
-st.caption("Gemaakt door Ewout • Gratis sentimentanalyse met VADER & NewsAPI")
-
+st.caption("Gemaakt door Ewout • Realtime sentimentanalyse met VADER & NewsAPI")
 
 
