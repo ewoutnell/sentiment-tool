@@ -4,7 +4,7 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import plotly.graph_objects as go
 
 # 🔑 Jouw NewsAPI-key (eventueel verplaatsbaar naar secrets)
-NEWSAPI_KEY = "8273c9b9fc7a4e1e83802707067b776b"
+NEWSAPI_KEY = st.secrets["newsapi"]["api_key"]
 
 # 📊 Functie: Toon sentimentmeter
 def toon_sentiment_meter(score):
