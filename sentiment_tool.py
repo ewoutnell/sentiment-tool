@@ -1,39 +1,52 @@
 import streamlit as st
 import requests
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+import feedparser
 import plotly.graph_objects as go
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import math
 
-# 🔐 NewsAPI-key uit secrets
 NEWSAPI_KEY = st.secrets["newsapi"]["api_key"]
 
-# 🕰️ Luxe klokstijl sentimentmeter
+def haal_newsapi_headlines(query, api_key):
+    url = f"https://newsapi.org/v2/everything?q={query} stock&sortBy=publishedAt&pageSize=5&apiKey={api_key}"
+    r = requests.get(url)
+    data = r.json()
+    return [a["title"] for a in data.get("articles", [])]
+
+def haal_yahoo_rss_headlines(ticker):
+    rss_url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={ticker}&region=US&lang=en-US"
+    feed = feedparser.parse(rss_url)
+    return [entry["title"] for entry in feed.entries[:5]]
+
+def analyseer_met_vader(titels):
+    analyzer = SentimentIntensityAnalyzer()
+    resultaten = []
+    for titel in titels:
+        score = analyzer.polarity_scores(titel)["compound"]
+        resultaten.append((titel, score))
+    return resultaten
+
 def toon_klokstijl_sentimentmeter(score):
-    angle = (1 - score) * math.pi  # van -1 (links) tot +1 (rechts)
+    angle = (1 - score) * math.pi
     x = 0.5 + 0.35 * math.cos(angle)
     y = 0.5 + 0.35 * math.sin(angle)
 
     fig = go.Figure()
 
-    # Wijzerplaat (diepgroen)
-    fig.add_shape(
-        type="circle",
-        x0=0.08, y0=0.08, x1=0.92, y1=0.92,
-        fillcolor="#1f4f3d",
-        line=dict(color="#cccccc", width=2)
-    )
+    # Wijzerplaat
+    fig.add_shape(type="circle", x0=0.08, y0=0.08, x1=0.92, y1=0.92,
+                  fillcolor="#1f4f3d", line=dict(color="#cccccc", width=2))
 
-    # Indexstrepen zoals een klok (13 streepjes)
+    # Indexstrepen
     for i in range(13):
         a = math.pi - i * (math.pi / 6)
         x0 = 0.5 + 0.38 * math.cos(a)
         y0 = 0.5 + 0.38 * math.sin(a)
         x1 = 0.5 + 0.42 * math.cos(a)
         y1 = 0.5 + 0.42 * math.sin(a)
-        fig.add_shape(type="line", x0=x0, y0=y0, x1=x1, y1=y1,
-                      line=dict(color="white", width=2))
+        fig.add_shape(type="line", x0=x0, y0=y0, x1=x1, y1=y1, line=dict(color="white", width=2))
 
-    # Wijzer (wit)
+    # Wijzer
     fig.add_trace(go.Scatter(
         x=[0.5, x],
         y=[0.5, y],
@@ -42,7 +55,6 @@ def toon_klokstijl_sentimentmeter(score):
         showlegend=False
     ))
 
-    # Layout
     fig.update_layout(
         xaxis=dict(visible=False, range=[0, 1]),
         yaxis=dict(visible=False, range=[0, 1]),
@@ -55,68 +67,42 @@ def toon_klokstijl_sentimentmeter(score):
 
     st.plotly_chart(fig)
 
-# 🧠 Titel & uitleg
-st.title("📊 Sentiment Tracker (Realtime & Gratis)")
-st.markdown("### 📈 Analyseer automatisch het sentiment van beursnieuws")
-st.write("Typ een bedrijf of ticker zoals `Apple`, `Tesla` of `ASML`. Wij halen live nieuws op en analyseren het met VADER.")
-
-# 🔍 Zoekveld
-zoekterm = st.text_input("🔍 Zoekterm:", value="Apple")
+# UI
+st.title("📊 Sentiment Tracker")
+st.markdown("Gecombineerde sentimentanalyse via NewsAPI & Yahoo Finance RSS.")
+zoekterm = st.text_input("🔍 Ticker of bedrijfsnaam:", value="Apple")
 
 if zoekterm:
     st.markdown("---")
 
-    # 📡 Nieuws ophalen
-    try:
-        url = f"https://newsapi.org/v2/everything?q={zoekterm}&sortBy=publishedAt&pageSize=5&apiKey={NEWSAPI_KEY}"
-        r = requests.get(url)
-        articles = r.json().get("articles", [])
-    except Exception as e:
-        st.error(f"Fout bij ophalen van nieuws: {e}")
-        articles = []
+    # 📡 Haal nieuws op uit beide bronnen
+    newsapi_titels = haal_newsapi_headlines(zoekterm, NEWSAPI_KEY)
+    yahoo_titels = haal_yahoo_rss_headlines(zoekterm)
 
-    analyzer = SentimentIntensityAnalyzer()
-    sentiments = []
+    alle_titels = newsapi_titels + yahoo_titels
+    if not alle_titels:
+        st.warning("Geen nieuws gevonden. Probeer een andere zoekterm.")
+    else:
+        resultaten = analyseer_met_vader(alle_titels)
+        gemidd_score = sum([s for _, s in resultaten]) / len(resultaten)
 
-    # 🔢 Analyseer elk artikel
-    for artikel in articles:
-        titel = artikel.get("title", "Geen titel")
-        url = artikel.get("url", "")
-        score = analyzer.polarity_scores(titel)["compound"]
-        sentiments.append(score)
-
-    # 🕰️ Toon klokstijl sentimentmeter
-    if sentiments:
-        gemiddeld = sum(sentiments) / len(sentiments)
         st.subheader("🧭 Gemiddeld sentiment")
-        toon_klokstijl_sentimentmeter(gemiddeld)
+        toon_klokstijl_sentimentmeter(gemidd_score)
 
-    # 📄 Toon artikelen en scores
-    st.subheader(f"📰 Nieuws & analyse voor **{zoekterm.upper()}**")
-
-    for i, artikel in enumerate(articles):
-        titel = artikel.get("title", "Geen titel")
-        url = artikel.get("url", "")
-        score = sentiments[i]
-
-        with st.container():
-            st.markdown("#### 📰 Nieuwsbericht")
-            st.write(f"[{titel}]({url})")
-
-            st.markdown("#### 💡 VADER-analyse")
-            if score <= -0.6:
-                st.error(f"Negatief ({score:.2f})")
-            elif score <= -0.2:
-                st.warning(f"Licht negatief ({score:.2f})")
-            elif score < 0.2:
-                st.info(f"Neutraal ({score:.2f})")
-            elif score < 0.6:
-                st.success(f"Licht positief ({score:.2f})")
-            else:
-                st.success(f"Positief ({score:.2f})")
-            st.markdown("---")
-
-# 📘 Footer
-st.markdown("---")
-st.caption("Gemaakt door Ewout • Sentimentanalyse met VADER & NewsAPI")
+        # 📰 Toon nieuwsitems met scores
+        st.subheader("📄 Nieuwsberichten & scores")
+        for titel, score in resultaten:
+            with st.container():
+                st.markdown(f"**{titel}**")
+                if score <= -0.6:
+                    st.error(f"Negatief ({score:.2f})")
+                elif score <= -0.2:
+                    st.warning(f"Licht negatief ({score:.2f})")
+                elif score < 0.2:
+                    st.info(f"Neutraal ({score:.2f})")
+                elif score < 0.6:
+                    st.success(f"Licht positief ({score:.2f})")
+                else:
+                    st.success(f"Positief ({score:.2f})")
+                st.markdown("---")
 
