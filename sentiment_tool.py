@@ -5,6 +5,9 @@ import plotly.graph_objects as go
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import numpy as np
 import streamlit.components.v1 as components
+import yfinance as yf
+import matplotlib.pyplot as plt
+import pandas as pd
 
 # 🔐 API key
 NEWSAPI_KEY = st.secrets["newsapi"]["api_key"]
@@ -14,7 +17,6 @@ NEWSAPI_KEY = st.secrets["newsapi"]["api_key"]
 def draw_sentiment_gauge(score):
     fig = go.Figure()
 
-    # Boog (semi-donut shape) met kleurverloop
     angles = np.linspace(-180, 0, 100)
     x0, y0 = 0.5, 0.5
     radius = 0.4
@@ -37,7 +39,6 @@ def draw_sentiment_gauge(score):
             line=dict(color=color, width=10)
         )
 
-    # Wijzer
     angle = (1 - (score + 1) / 2) * np.pi
     x_pointer = x0 + 0.35 * np.cos(angle)
     y_pointer = y0 + 0.35 * np.sin(angle)
@@ -48,7 +49,6 @@ def draw_sentiment_gauge(score):
         line=dict(color="white", width=5)
     )
 
-    # Labels
     fig.add_annotation(x=0.15, y=0.1, text="–", showarrow=False, font=dict(color="white", size=16))
     fig.add_annotation(x=0.85, y=0.1, text="+", showarrow=False, font=dict(color="white", size=16))
 
@@ -64,8 +64,6 @@ def draw_sentiment_gauge(score):
 
     st.plotly_chart(fig)
 
-# 🎨 Kleurverloop op basis van positie
-
 def get_gauge_gradient(position):
     if position <= 0.25:
         return "#d62728"
@@ -77,8 +75,6 @@ def get_gauge_gradient(position):
         return "#2ca02c"
     else:
         return "#1f77b4"
-
-# 📡 Nieuws ophalen
 
 def get_newsapi_headlines(query):
     url = f"https://newsapi.org/v2/everything?q={query} stock&sortBy=publishedAt&pageSize=5&apiKey={NEWSAPI_KEY}"
@@ -99,17 +95,22 @@ def analyze_with_vader(titles):
         results.append((title, score))
     return results
 
-# 🧠 UI
-st.title("📊 Sentiment Tracker")
-st.markdown("Visual sentiment gauge with curved gradient and live news analysis.")
+def calculate_rsi(data, period=14):
+    delta = data["Close"].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
 
-# 🔄 Inject JavaScript in de echte zoekbalk placeholder
+st.title("📊 Sentiment Tracker")
+st.markdown("Visual sentiment gauge with curved gradient, RSI signal and live news analysis.")
+
 components.html(
     """
     <script>
       const tickers = ["AAPL", "TSLA", "MSFT", "NVDA", "ASML", "AMZN"];
       let i = 0;
-
       function typePlaceholder(text, el) {
         let j = 0;
         function typeChar() {
@@ -123,7 +124,6 @@ components.html(
         }
         typeChar();
       }
-
       function erasePlaceholder(el) {
         let current = el.placeholder;
         let j = current.length;
@@ -139,7 +139,6 @@ components.html(
         }
         eraseChar();
       }
-
       const waitForInput = setInterval(() => {
         const input = window.parent.document.querySelector('input[type="text"]');
         if (input) {
@@ -170,6 +169,23 @@ if query:
         st.subheader("🧭 Average Sentiment")
         draw_sentiment_gauge(avg_score)
 
+        st.subheader("🧠 RSI + Sentiment Analysis")
+        df = yf.download(query, period="1mo", interval="1d")
+        df.dropna(inplace=True)
+
+        if not df.empty:
+            df["RSI"] = calculate_rsi(df)
+            latest_rsi = df["RSI"].dropna().iloc[-1] if not df["RSI"].dropna().empty else None
+
+            if latest_rsi:
+                st.write(f"Latest RSI: **{latest_rsi:.2f}**")
+                if latest_rsi < 30 and avg_score > 0.2:
+                    st.success("🔍 RSI = Oversold & Sentiment = Positive → Possible Buy Opportunity")
+                elif latest_rsi > 70 and avg_score < -0.2:
+                    st.error("⚠ RSI = Overbought & Sentiment = Negative → Possible Drop Ahead")
+                else:
+                    st.info("ℹ Market is balanced or mixed signals")
+
         st.subheader("📰 News & Sentiment Scores")
         for title, score in results:
             with st.container():
@@ -185,3 +201,4 @@ if query:
                 else:
                     st.success(f"Positive ({score:.2f})")
                 st.markdown("---")
+
