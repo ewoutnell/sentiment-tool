@@ -4,6 +4,7 @@ import feedparser
 import plotly.graph_objects as go
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 import numpy as np
+import streamlit.components.v1 as components
 
 # 🔐 API key
 NEWSAPI_KEY = st.secrets["newsapi"]["api_key"]
@@ -102,7 +103,25 @@ def analyze_with_vader(titles):
 st.title("📊 Sentiment Tracker")
 st.markdown("Visual sentiment gauge with curved gradient and live news analysis.")
 
-query = st.text_input("🔍 Company name or ticker:", value="Apple")
+# 🔄 Geanimeerde placeholder ticker
+components.html(
+    """
+    <input id='tickerInput' type='text' placeholder='🔍 Example: AAPL' 
+           style='font-size: 16px; padding: 10px; width: 100%; border-radius: 5px; border: 1px solid #ccc;'>
+    <script>
+      const tickers = ["AAPL", "TSLA", "MSFT", "NVDA", "ASML", "AMZN"];
+      let i = 0;
+      setInterval(() => {
+        document.getElementById("tickerInput").placeholder = "🔍 Example: " + tickers[i % tickers.length];
+        i++;
+      }, 3000);
+    </script>
+    """,
+    height=60
+)
+
+# Normale invoer voor echte input
+query = st.text_input("Enter a company name or ticker:", value="Apple")
 
 if query:
     st.markdown("---")
