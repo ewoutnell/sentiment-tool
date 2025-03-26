@@ -179,12 +179,23 @@ if query:
 
             if latest_rsi:
                 st.write(f"Latest RSI: **{latest_rsi:.2f}**")
-                if latest_rsi < 30 and avg_score > 0.2:
-                    st.success("🔍 RSI = Oversold & Sentiment = Positive → Possible Buy Opportunity")
-                elif latest_rsi > 70 and avg_score < -0.2:
-                    st.error("⚠ RSI = Overbought & Sentiment = Negative → Possible Drop Ahead")
+
+                st.subheader("🧩 Market Sentiment Summary")
+                if latest_rsi < 30:
+                    rsi_status = "oversold"
+                elif latest_rsi > 70:
+                    rsi_status = "overbought"
                 else:
-                    st.info("ℹ Market is balanced or mixed signals")
+                    rsi_status = "neutral"
+
+                if avg_score < -0.2:
+                    sentiment_label = "negative"
+                elif avg_score > 0.2:
+                    sentiment_label = "positive"
+                else:
+                    sentiment_label = "neutral"
+
+                st.info(f"📌 Based on recent price movement, the stock is currently **{rsi_status}**. Meanwhile, news sentiment appears to be **{sentiment_label}**. This offers insight into how investors are reacting to this stock.")
 
         st.subheader("📰 News & Sentiment Scores")
         for title, score in results:
