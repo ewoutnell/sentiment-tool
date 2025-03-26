@@ -8,77 +8,77 @@ import numpy as np
 # 🔐 API key
 NEWSAPI_KEY = st.secrets["newsapi"]["api_key"]
 
-# 🎨 Gradient bar with sentiment pointer
-def draw_sentiment_meter(score):
+# 🎯 Gauge met halve cirkel en kleurverloop
+
+def draw_sentiment_gauge(score):
     fig = go.Figure()
 
-    # Add a smooth gradient bar using an image
-    fig.add_layout_image(
-        dict(
-            source=generate_gradient_image(),
-            xref="x", yref="y",
-            x=-1, y=0.2,
-            sizex=2, sizey=0.2,
-            sizing="stretch",
-            opacity=1,
-            layer="below"
-        )
-    )
+    # Boog (semi-donut shape) met kleurverloop
+    angles = np.linspace(-180, 0, 100)
+    x0, y0 = 0.5, 0.5
+    radius = 0.4
 
-    # Pointer line
+    for i in range(len(angles) - 1):
+        theta0 = np.radians(angles[i])
+        theta1 = np.radians(angles[i + 1])
+
+        x_start = x0 + radius * np.cos(theta0)
+        y_start = y0 + radius * np.sin(theta0)
+        x_end = x0 + radius * np.cos(theta1)
+        y_end = y0 + radius * np.sin(theta1)
+
+        color = get_gauge_gradient((i + 1) / len(angles))
+
+        fig.add_shape(
+            type="line",
+            x0=x_start, y0=y_start,
+            x1=x_end, y1=y_end,
+            line=dict(color=color, width=10)
+        )
+
+    # Wijzer
+    angle = (1 - (score + 1) / 2) * np.pi
+    x_pointer = x0 + 0.35 * np.cos(angle)
+    y_pointer = y0 + 0.35 * np.sin(angle)
     fig.add_shape(
         type="line",
-        x0=score, x1=score,
-        y0=0.25, y1=0.35,
-        line=dict(color="white", width=4)
+        x0=x0, y0=y0,
+        x1=x_pointer, y1=y_pointer,
+        line=dict(color="white", width=5)
     )
 
-    # Axis labels under the bar
-    for val in np.linspace(-1, 1, 9):
-        fig.add_annotation(
-            x=val,
-            y=-0.05,
-            text=f"{val:.1f}",
-            showarrow=False,
-            font=dict(color="white", size=10)
-        )
+    # Labels
+    fig.add_annotation(x=0.15, y=0.1, text="–", showarrow=False, font=dict(color="white", size=16))
+    fig.add_annotation(x=0.85, y=0.1, text="+", showarrow=False, font=dict(color="white", size=16))
 
     fig.update_layout(
-        xaxis=dict(range=[-1, 1], visible=False),
-        yaxis=dict(range=[-0.1, 0.4], visible=False),
-        plot_bgcolor="#111111",
-        paper_bgcolor="#111111",
-        width=650,
-        height=200,
-        margin=dict(l=20, r=20, t=20, b=20)
+        xaxis=dict(range=[0, 1], visible=False),
+        yaxis=dict(range=[0, 1], visible=False),
+        plot_bgcolor="black",
+        paper_bgcolor="black",
+        width=500,
+        height=300,
+        margin=dict(l=0, r=0, t=10, b=10)
     )
 
     st.plotly_chart(fig)
 
-# 🖼️ Generate gradient image using numpy + PIL
-def generate_gradient_image():
-    from PIL import Image
-    width = 500
-    height = 1
-    img = Image.new("RGB", (width, height))
+# 🎨 Kleurverloop op basis van positie
 
-    for x in range(width):
-        val = x / width  # 0 to 1
-        if val <= 0.2:
-            color = (214, 39, 40)  # red
-        elif val <= 0.4:
-            color = (255, 127, 14)  # orange
-        elif val <= 0.6:
-            color = (255, 221, 87)  # yellow
-        elif val <= 0.8:
-            color = (44, 160, 44)  # green
-        else:
-            color = (31, 119, 180)  # blue
-        img.putpixel((x, 0), color)
+def get_gauge_gradient(position):
+    if position <= 0.25:
+        return "#d62728"
+    elif position <= 0.45:
+        return "#ff7f0e"
+    elif position <= 0.65:
+        return "#ffdd57"
+    elif position <= 0.85:
+        return "#2ca02c"
+    else:
+        return "#1f77b4"
 
-    return img
+# 📡 Nieuws ophalen
 
-# 📡 News functions
 def get_newsapi_headlines(query):
     url = f"https://newsapi.org/v2/everything?q={query} stock&sortBy=publishedAt&pageSize=5&apiKey={NEWSAPI_KEY}"
     r = requests.get(url)
@@ -100,7 +100,7 @@ def analyze_with_vader(titles):
 
 # 🧠 UI
 st.title("📊 Sentiment Tracker")
-st.markdown("Visual sentiment meter with smooth gradient and live news analysis.")
+st.markdown("Visual sentiment gauge with curved gradient and live news analysis.")
 
 query = st.text_input("🔍 Company name or ticker:", value="Apple")
 
@@ -118,7 +118,7 @@ if query:
         avg_score = sum([s for _, s in results]) / len(results)
 
         st.subheader("🧭 Average Sentiment")
-        draw_sentiment_meter(avg_score)
+        draw_sentiment_gauge(avg_score)
 
         st.subheader("📰 News & Sentiment Scores")
         for title, score in results:
