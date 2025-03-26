@@ -3,3 +3,4 @@ yfinance
 vaderSentiment
 openai
 plotly
+feedparser
