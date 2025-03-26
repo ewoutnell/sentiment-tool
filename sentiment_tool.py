@@ -8,15 +8,14 @@ import streamlit.components.v1 as components
 import yfinance as yf
 import matplotlib.pyplot as plt
 import pandas as pd
+import fitz  # pymupdf voor PDF extractie
+from textblob import TextBlob
 
-# 🔐 API key
-NEWSAPI_KEY = st.secrets["newsapi"]["api_key"]
+st.set_page_config(layout="centered")
 
 # 🎯 Gauge met halve cirkel en kleurverloop
-
 def draw_sentiment_gauge(score):
     fig = go.Figure()
-
     angles = np.linspace(-180, 0, 100)
     x0, y0 = 0.5, 0.5
     radius = 0.4
@@ -24,44 +23,26 @@ def draw_sentiment_gauge(score):
     for i in range(len(angles) - 1):
         theta0 = np.radians(angles[i])
         theta1 = np.radians(angles[i + 1])
-
         x_start = x0 + radius * np.cos(theta0)
         y_start = y0 + radius * np.sin(theta0)
         x_end = x0 + radius * np.cos(theta1)
         y_end = y0 + radius * np.sin(theta1)
-
         color = get_gauge_gradient((i + 1) / len(angles))
-
-        fig.add_shape(
-            type="line",
-            x0=x_start, y0=y_start,
-            x1=x_end, y1=y_end,
-            line=dict(color=color, width=10)
-        )
+        fig.add_shape(type="line", x0=x_start, y0=y_start, x1=x_end, y1=y_end,
+                      line=dict(color=color, width=10))
 
     angle = (1 - (score + 1) / 2) * np.pi
     x_pointer = x0 + 0.35 * np.cos(angle)
     y_pointer = y0 + 0.35 * np.sin(angle)
-    fig.add_shape(
-        type="line",
-        x0=x0, y0=y0,
-        x1=x_pointer, y1=y_pointer,
-        line=dict(color="white", width=5)
-    )
+    fig.add_shape(type="line", x0=x0, y0=y0, x1=x_pointer, y1=y_pointer,
+                  line=dict(color="white", width=5))
 
     fig.add_annotation(x=0.15, y=0.1, text="–", showarrow=False, font=dict(color="white", size=16))
     fig.add_annotation(x=0.85, y=0.1, text="+", showarrow=False, font=dict(color="white", size=16))
 
-    fig.update_layout(
-        xaxis=dict(range=[0, 1], visible=False),
-        yaxis=dict(range=[0, 1], visible=False),
-        plot_bgcolor="black",
-        paper_bgcolor="black",
-        width=500,
-        height=300,
-        margin=dict(l=0, r=0, t=10, b=10)
-    )
-
+    fig.update_layout(xaxis=dict(range=[0, 1], visible=False), yaxis=dict(range=[0, 1], visible=False),
+                      plot_bgcolor="black", paper_bgcolor="black", width=500, height=300,
+                      margin=dict(l=0, r=0, t=10, b=10))
     st.plotly_chart(fig)
 
 def get_gauge_gradient(position):
@@ -77,6 +58,7 @@ def get_gauge_gradient(position):
         return "#1f77b4"
 
 def get_newsapi_headlines(query):
+    NEWSAPI_KEY = st.secrets["newsapi"]["api_key"]
     url = f"https://newsapi.org/v2/everything?q={query} stock&sortBy=publishedAt&pageSize=5&apiKey={NEWSAPI_KEY}"
     r = requests.get(url)
     data = r.json()
@@ -103,53 +85,70 @@ def calculate_rsi(data, period=14):
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-st.title("📊 Sentiment Tracker")
-st.markdown("Visual sentiment gauge with curved gradient, RSI signal and live news analysis.")
+def extract_text_from_pdf(uploaded_file):
+    doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+    text = ""
+    for page in doc:
+        text += page.get_text()
+    return text
 
-components.html(
-    """
-    <script>
-      const tickers = ["AAPL", "TSLA", "MSFT", "NVDA", "ASML", "AMZN"];
-      let i = 0;
-      function typePlaceholder(text, el) {
-        let j = 0;
-        function typeChar() {
-          if (j <= text.length) {
-            el.placeholder = text.substring(0, j);
-            j++;
-            setTimeout(typeChar, 100);
-          } else {
-            setTimeout(() => erasePlaceholder(el), 2000);
-          }
-        }
-        typeChar();
+def analyze_sentiment_textblob(text):
+    blob = TextBlob(text)
+    polarity = blob.sentiment.polarity
+    if polarity > 0.2:
+        label = "positive"
+    elif polarity < -0.2:
+        label = "negative"
+    else:
+        label = "neutral"
+    return label, polarity
+
+# 🎯 UI
+st.title("📊 Sentiment Tracker")
+st.markdown("Visual sentiment gauge with RSI, news analysis, and PDF annual report sentiment upload.")
+
+# 🎯 Placeholder animatie (zoekbalk)
+components.html("""
+<script>
+  const tickers = ["AAPL", "TSLA", "MSFT", "NVDA", "ASML", "AMZN"];
+  let i = 0;
+  function typePlaceholder(text, el) {
+    let j = 0;
+    function typeChar() {
+      if (j <= text.length) {
+        el.placeholder = text.substring(0, j);
+        j++;
+        setTimeout(typeChar, 100);
+      } else {
+        setTimeout(() => erasePlaceholder(el), 2000);
       }
-      function erasePlaceholder(el) {
-        let current = el.placeholder;
-        let j = current.length;
-        function eraseChar() {
-          if (j >= 0) {
-            el.placeholder = current.substring(0, j);
-            j--;
-            setTimeout(eraseChar, 50);
-          } else {
-            i = (i + 1) % tickers.length;
-            setTimeout(() => typePlaceholder(tickers[i], el), 200);
-          }
-        }
-        eraseChar();
+    }
+    typeChar();
+  }
+  function erasePlaceholder(el) {
+    let current = el.placeholder;
+    let j = current.length;
+    function eraseChar() {
+      if (j >= 0) {
+        el.placeholder = current.substring(0, j);
+        j--;
+        setTimeout(eraseChar, 50);
+      } else {
+        i = (i + 1) % tickers.length;
+        setTimeout(() => typePlaceholder(tickers[i], el), 200);
       }
-      const waitForInput = setInterval(() => {
-        const input = window.parent.document.querySelector('input[type="text"]');
-        if (input) {
-          clearInterval(waitForInput);
-          typePlaceholder(tickers[i], input);
-        }
-      }, 100);
-    </script>
-    """,
-    height=0
-)
+    }
+    eraseChar();
+  }
+  const waitForInput = setInterval(() => {
+    const input = window.parent.document.querySelector('input[type="text"]');
+    if (input) {
+      clearInterval(waitForInput);
+      typePlaceholder(tickers[i], input);
+    }
+  }, 100);
+</script>
+""", height=0)
 
 query = st.text_input("Enter a company name or ticker:", value="")
 
@@ -212,4 +211,17 @@ if query:
                 else:
                     st.success(f"Positive ({score:.2f})")
                 st.markdown("---")
+
+    st.subheader("📄 Upload Annual Report (PDF)")
+    uploaded_file = st.file_uploader("Upload a company's annual report (.pdf)", type=["pdf"])
+
+    if uploaded_file:
+        with st.spinner("Analyzing report..."):
+            text = extract_text_from_pdf(uploaded_file)
+            label, polarity = analyze_sentiment_textblob(text[:5000])  # analyseer eerste stuk
+            st.success("✅ Analysis complete!")
+            st.markdown(f"**Detected sentiment in report:** `{label.upper()}` ({polarity:.2f})")
+
+            with st.expander("📃 Show report preview"):
+                st.write(text[:2000])
 
