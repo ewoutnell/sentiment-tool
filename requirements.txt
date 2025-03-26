@@ -5,3 +5,5 @@ openai
 plotly
 feedparser
 matplotlib
+textblob
+pymupdf
