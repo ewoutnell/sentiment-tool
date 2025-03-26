@@ -3,12 +3,62 @@ import requests
 import feedparser
 import plotly.graph_objects as go
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-import math
 
+# Haal je NewsAPI-key uit secrets
 NEWSAPI_KEY = st.secrets["newsapi"]["api_key"]
 
-def haal_newsapi_headlines(query, api_key):
-    url = f"https://newsapi.org/v2/everything?q={query} stock&sortBy=publishedAt&pageSize=5&apiKey={api_key}"
+# 🧠 Sentimentzones
+ZONES = [
+    {"label": "Negatief", "min": -1.0, "max": -0.6, "color": "#d62728"},
+    {"label": "Licht negatief", "min": -0.6, "max": -0.2, "color": "#ff7f0e"},
+    {"label": "Neutraal", "min": -0.2, "max": 0.2, "color": "#ffdd57"},
+    {"label": "Licht positief", "min": 0.2, "max": 0.6, "color": "#2ca02c"},
+    {"label": "Positief", "min": 0.6, "max": 1.0, "color": "#1f77b4"},
+]
+
+# 📊 Teken de 5-zone sentimentmeter
+def teken_sentimentmeter(score):
+    fig = go.Figure()
+
+    # Voeg de zones toe als rechthoeken
+    for zone in ZONES:
+        fig.add_shape(
+            type="rect",
+            x0=zone["min"], y0=0, x1=zone["max"], y1=0.2,
+            fillcolor=zone["color"],
+            line=dict(width=0)
+        )
+        fig.add_annotation(
+            x=(zone["min"] + zone["max"]) / 2,
+            y=0.25,
+            text=zone["label"],
+            showarrow=False,
+            font=dict(size=12)
+        )
+
+    # Voeg de wijzer toe
+    fig.add_shape(
+        type="line",
+        x0=score, x1=score,
+        y0=0.25, y1=0.35,
+        line=dict(color="white", width=4)
+    )
+
+    fig.update_layout(
+        xaxis=dict(range=[-1, 1], visible=False),
+        yaxis=dict(range=[0, 0.5], visible=False),
+        plot_bgcolor="#111111",
+        paper_bgcolor="#111111",
+        width=600,
+        height=180,
+        margin=dict(l=20, r=20, t=20, b=20)
+    )
+
+    st.plotly_chart(fig)
+
+# Nieuws ophalen
+def haal_newsapi_headlines(query):
+    url = f"https://newsapi.org/v2/everything?q={query} stock&sortBy=publishedAt&pageSize=5&apiKey={NEWSAPI_KEY}"
     r = requests.get(url)
     data = r.json()
     return [a["title"] for a in data.get("articles", [])]
@@ -26,70 +76,28 @@ def analyseer_met_vader(titels):
         resultaten.append((titel, score))
     return resultaten
 
-def toon_klokstijl_sentimentmeter(score):
-    angle = (1 - score) * math.pi
-    x = 0.5 + 0.35 * math.cos(angle)
-    y = 0.5 + 0.35 * math.sin(angle)
-
-    fig = go.Figure()
-
-    # Wijzerplaat
-    fig.add_shape(type="circle", x0=0.08, y0=0.08, x1=0.92, y1=0.92,
-                  fillcolor="#1f4f3d", line=dict(color="#cccccc", width=2))
-
-    # Indexstrepen
-    for i in range(13):
-        a = math.pi - i * (math.pi / 6)
-        x0 = 0.5 + 0.38 * math.cos(a)
-        y0 = 0.5 + 0.38 * math.sin(a)
-        x1 = 0.5 + 0.42 * math.cos(a)
-        y1 = 0.5 + 0.42 * math.sin(a)
-        fig.add_shape(type="line", x0=x0, y0=y0, x1=x1, y1=y1, line=dict(color="white", width=2))
-
-    # Wijzer
-    fig.add_trace(go.Scatter(
-        x=[0.5, x],
-        y=[0.5, y],
-        mode="lines",
-        line=dict(color="white", width=6),
-        showlegend=False
-    ))
-
-    fig.update_layout(
-        xaxis=dict(visible=False, range=[0, 1]),
-        yaxis=dict(visible=False, range=[0, 1]),
-        plot_bgcolor="#1f4f3d",
-        paper_bgcolor="#1f4f3d",
-        width=350,
-        height=350,
-        margin=dict(l=0, r=0, t=10, b=10)
-    )
-
-    st.plotly_chart(fig)
-
-# UI
+# 🧠 UI
 st.title("📊 Sentiment Tracker")
-st.markdown("Gecombineerde sentimentanalyse via NewsAPI & Yahoo Finance RSS.")
+st.markdown("Professionele 5-zone sentimentmeter met realtime nieuws.")
+
 zoekterm = st.text_input("🔍 Ticker of bedrijfsnaam:", value="Apple")
 
 if zoekterm:
     st.markdown("---")
 
-    # 📡 Haal nieuws op uit beide bronnen
-    newsapi_titels = haal_newsapi_headlines(zoekterm, NEWSAPI_KEY)
+    newsapi_titels = haal_newsapi_headlines(zoekterm)
     yahoo_titels = haal_yahoo_rss_headlines(zoekterm)
-
     alle_titels = newsapi_titels + yahoo_titels
+
     if not alle_titels:
         st.warning("Geen nieuws gevonden. Probeer een andere zoekterm.")
     else:
         resultaten = analyseer_met_vader(alle_titels)
-        gemidd_score = sum([s for _, s in resultaten]) / len(resultaten)
+        gemiddeld = sum([s for _, s in resultaten]) / len(resultaten)
 
         st.subheader("🧭 Gemiddeld sentiment")
-        toon_klokstijl_sentimentmeter(gemidd_score)
+        teken_sentimentmeter(gemiddeld)
 
-        # 📰 Toon nieuwsitems met scores
         st.subheader("📄 Nieuwsberichten & scores")
         for titel, score in resultaten:
             with st.container():
