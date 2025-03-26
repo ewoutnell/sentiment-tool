@@ -196,22 +196,6 @@ if query:
 
                 st.info(f"📌 Based on recent price movement, the stock is currently **{rsi_status}**. Meanwhile, news sentiment appears to be **{sentiment_label}**. This offers insight into how investors are reacting to this stock.")
 
-        st.subheader("📰 News & Sentiment Scores")
-        for title, score in results:
-            with st.container():
-                st.markdown(f"**{title}**")
-                if score <= -0.6:
-                    st.error(f"Negative ({score:.2f})")
-                elif score <= -0.2:
-                    st.warning(f"Slightly Negative ({score:.2f})")
-                elif score < 0.2:
-                    st.info(f"Neutral ({score:.2f})")
-                elif score < 0.6:
-                    st.success(f"Slightly Positive ({score:.2f})")
-                else:
-                    st.success(f"Positive ({score:.2f})")
-                st.markdown("---")
-
     st.subheader("📄 Upload Annual Report (PDF)")
     uploaded_file = st.file_uploader("Upload a company's annual report (.pdf)", type=["pdf"])
 
