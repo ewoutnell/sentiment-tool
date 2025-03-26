@@ -200,20 +200,20 @@ if query:
     st.subheader("📄 Upload Annual Report (PDF)")
     uploaded_file = st.file_uploader("Upload a company's annual report (.pdf)", type=["pdf"])
 
-    if uploaded_file:
-        with st.spinner("Analyzing report..."):
-            text = extract_text_from_pdf(uploaded_file)
-            label, polarity = analyze_sentiment_textblob(text[:5000])  # analyseer eerste stuk
-            st.success("✅ Analysis complete!")
-            st.markdown(f"**Detected sentiment in report:** `{label.upper()}` ({polarity:.2f})")
+if uploaded_file:
+    with st.spinner("Analyzing report..."):
+        text = extract_text_from_pdf(uploaded_file)
+        label, polarity = analyze_sentiment_textblob(text[:5000])
+        st.success("✅ Analysis complete!")
+        st.markdown(f"**Detected sentiment in report:** `{label.upper()}` ({polarity:.2f})")
 
- if latest_rsi is not None:
-    overall = calculate_overall_sentiment(avg_score, polarity, latest_rsi)
-    st.subheader("📊 Combined Sentiment Analysis")
-    st.markdown(f"**Overall score:** `{overall['total_score']}` → **{overall['label'].upper()}**")
-    st.markdown("**Component breakdown:**")
-    st.json(overall['components'])
+        if latest_rsi is not None:
+            overall = calculate_overall_sentiment(avg_score, polarity, latest_rsi)
+            st.subheader("📊 Combined Sentiment Analysis")
+            st.markdown(f"**Overall score:** `{overall['total_score']}` → **{overall['label'].upper()}**")
+            st.markdown("**Component breakdown:**")
+            st.json(overall['components'])
 
-            with st.expander("📃 Show report preview"):
-                st.write(text[:2000])
+    with st.expander("📃 Show report preview"):
+        st.write(text[:2000])
 
