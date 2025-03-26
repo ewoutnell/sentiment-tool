@@ -103,25 +103,56 @@ def analyze_with_vader(titles):
 st.title("📊 Sentiment Tracker")
 st.markdown("Visual sentiment gauge with curved gradient and live news analysis.")
 
-# 🔄 Geanimeerde placeholder ticker
+# 🔄 Inject JavaScript in de echte zoekbalk placeholder
 components.html(
     """
-    <input id='tickerInput' type='text' placeholder='🔍 Example: AAPL' 
-           style='font-size: 16px; padding: 10px; width: 100%; border-radius: 5px; border: 1px solid #ccc;'>
     <script>
       const tickers = ["AAPL", "TSLA", "MSFT", "NVDA", "ASML", "AMZN"];
       let i = 0;
-      setInterval(() => {
-        document.getElementById("tickerInput").placeholder = "🔍 Example: " + tickers[i % tickers.length];
-        i++;
-      }, 3000);
+
+      function typePlaceholder(text, el) {
+        let j = 0;
+        function typeChar() {
+          if (j <= text.length) {
+            el.placeholder = text.substring(0, j);
+            j++;
+            setTimeout(typeChar, 100);
+          } else {
+            setTimeout(() => erasePlaceholder(el), 2000);
+          }
+        }
+        typeChar();
+      }
+
+      function erasePlaceholder(el) {
+        let current = el.placeholder;
+        let j = current.length;
+        function eraseChar() {
+          if (j >= 0) {
+            el.placeholder = current.substring(0, j);
+            j--;
+            setTimeout(eraseChar, 50);
+          } else {
+            i = (i + 1) % tickers.length;
+            setTimeout(() => typePlaceholder(tickers[i], el), 200);
+          }
+        }
+        eraseChar();
+      }
+
+      const waitForInput = setInterval(() => {
+        const input = window.parent.document.querySelector('input[type="text"]');
+        if (input) {
+          clearInterval(waitForInput);
+          typePlaceholder(tickers[i], input);
+        }
+      }, 100);
     </script>
     """,
-    height=60
+    height=0
 )
 
-# Normale invoer voor echte input
-query = st.text_input("Enter a company name or ticker:", value="Apple")
+query = st.text_input("Enter a company name or ticker:", value="")
 
 if query:
     st.markdown("---")
@@ -154,4 +185,3 @@ if query:
                 else:
                     st.success(f"Positive ({score:.2f})")
                 st.markdown("---")
-
