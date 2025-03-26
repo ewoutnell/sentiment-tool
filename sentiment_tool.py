@@ -198,7 +198,7 @@ if query:
                 st.info(f"📌 Based on recent price movement, the stock is currently **{rsi_status}**. Meanwhile, news sentiment appears to be **{sentiment_label}**. This offers insight into how investors are reacting to this stock.")
 
     st.subheader("📄 Upload Annual Report (PDF)")
-    uploaded_file = st.file_uploader("Upload a company's annual report (.pdf)", type=["pdf"])
+uploaded_file = st.file_uploader("Upload a company's annual report (.pdf)", type=["pdf"])
 
 if uploaded_file:
     with st.spinner("Analyzing report..."):
