@@ -4,3 +4,4 @@ vaderSentiment
 openai
 plotly
 feedparser
+matplotlib
